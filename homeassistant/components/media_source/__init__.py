@@ -35,6 +35,7 @@ from .const import (
 )
 from .error import MediaSourceError, Unresolvable
 from .models import BrowseMediaSource, MediaSource, MediaSourceItem, PlayMedia
+from .playlist_view import PlaylistView
 
 __all__ = [
     "DOMAIN",
@@ -88,6 +89,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     await async_process_integration_platforms(
         hass, DOMAIN, _process_media_source_platform
     )
+    hass.http.register_view(PlaylistView())
     return True
 
 

@@ -12,7 +12,16 @@ Media identifiers can look like:
 
 from __future__ import annotations
 
-from homeassistant.components.media_player import BrowseError, MediaClass, MediaType
+from datetime import timedelta
+import urllib
+
+from homeassistant.components.http.auth import async_sign_path
+from homeassistant.components.media_player import (
+    CONTENT_AUTH_EXPIRY_TIME,
+    BrowseError,
+    MediaClass,
+    MediaType,
+)
 from homeassistant.components.media_source import (
     BrowseMediaSource,
     MediaSource,
@@ -59,7 +68,25 @@ class DmsMediaSource(MediaSource):
         except KeyError as err:
             raise Unresolvable(f"Unknown source ID: {source_id}") from err
 
-        return await source.async_resolve_media(media_id)
+        play_media = await source.async_resolve_media(media_id)
+        # if children exist, then send a url that will resolve to an m3u playlist/playlist
+        # see playlist_view in Media_Source component
+        try:
+            child_count = int(play_media.didl_metadata.child_count)
+        except (AttributeError, TypeError, ValueError):
+            child_count = 0
+        LOGGER.debug(f"Resolved media number of children is {child_count}")
+        if child_count > 0:
+            media = f"media-source://{DOMAIN}/{item.identifier}"
+            url = f"/api/media/playlist/playlist.m3u?media={urllib.parse.quote(media)}"
+            # Add authenticated signature because Media Player will not add to a url with a query parameter
+            play_media.url = async_sign_path(
+                self.hass, url, timedelta(seconds=CONTENT_AUTH_EXPIRY_TIME)
+            )
+            play_media.mime_type = "audio/x-mpegurl"
+            LOGGER.debug(f"Changing Resolved url to {play_media.url}")
+
+        return play_media
 
     async def async_browse_media(self, item: MediaSourceItem) -> BrowseMediaSource:
         """Browse media."""

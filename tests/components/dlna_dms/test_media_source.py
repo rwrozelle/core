@@ -114,6 +114,36 @@ async def test_resolve_media_success(
     assert result.didl_metadata is didl_item
 
 
+async def test_resolve_media_playlist(
+    hass: HomeAssistant, dms_device_mock: Mock, device_source_mock: None
+) -> None:
+    """Test resolving an item via a DmsDeviceSource."""
+    object_id = "123"
+
+    res_url = "foo/bar"
+    res_mime = "audio/mpeg"
+    didl_item = didl_lite.Item(
+        id=object_id,
+        restricted=False,
+        title="Object",
+        res=[didl_lite.Resource(uri=res_url, protocol_info=f"http-get:*:{res_mime}:")],
+        child_count=1,
+    )
+    dms_device_mock.async_browse_metadata.return_value = didl_item
+
+    result = await media_source.async_resolve_media(
+        hass, f"media-source://{DOMAIN}/{MOCK_SOURCE_ID}/:{object_id}", None
+    )
+    url = result.url.split("&")[0]
+    assert isinstance(result, DidlPlayMedia)
+    assert (
+        url
+        == f"/api/media/playlist/playlist.m3u?media=media-source://dlna_dms/test_server_device/:{object_id}"
+    )
+    assert result.mime_type == "audio/x-mpegurl"
+    assert result.didl_metadata is didl_item
+
+
 async def test_browse_media_unconfigured(hass: HomeAssistant) -> None:
     """Test browse_media without any devices being configured."""
     source = DmsMediaSource(hass)
